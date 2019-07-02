@@ -16,7 +16,7 @@ output:
 ---
 
 # Key Findings & Approach
-One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/){target="_blank"}.
+One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/)a.
 
 <br>
 <br>
