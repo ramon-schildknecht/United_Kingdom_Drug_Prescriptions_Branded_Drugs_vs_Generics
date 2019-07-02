@@ -14,4 +14,5 @@
 
 **Data Exploration**: you can explore our dataset with this [RShiny App](https://www.shinyapps.io/admin/#/application/971777). The source code lies in the folder "med_list_demo" 
 
-<a href="http://www.google.com" target="blank">google</a>
+This is [a link](http://example.com){:target="_blank"} that opens in a new window.
+
