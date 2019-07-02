@@ -1,6 +1,6 @@
 ---
-title: "Data Preparation and Exploration"
-date: "6.6.2019"
+title: "United Kingdom Drug Prescriptions Branded Drugs vs Generics"
+date: "1.7.2019"
 author:
 - Lars Gisler
 - Ramon Schildknecht
@@ -16,7 +16,7 @@ output:
 ---
 
 # Key Findings & Approach
-One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/).
+One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/){target="_blank"}.
 
 <br>
 <br>
@@ -139,7 +139,7 @@ rm(plpd) # remove big file for optimizing RAM
 - extract chemical substance from bnft table from the attribute "bnf_name". connect the chemical substance from the bnft with the chem_subs file (attribute "chem_sub"). Assumption: mapping is working correctly with the first 9 signs, example: 040702040.  
 - Attribute "practice" from bnft table can be connected with the second attribute (name tbd) from the adrr table, example: B86057 
 
-See [our presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/) for further details.
+See [our presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/){target="_blank"} for further details.
 
 
 ```{r Data Model, eval=FALSE, include=FALSE}
@@ -243,7 +243,7 @@ One can't:
 5. How does the price of branded drugs for which a generic exists differ from those branded drugs for which no generic exists? 
 6. How is the distribution of branded and generic products among the BNF chapters? 
 
-Detailed answers are found in [this PowerPoint presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/). 
+Detailed answers are found in [this PowerPoint presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/){target="_blank"}. 
 
 <br>
 <br>
@@ -680,10 +680,3 @@ Chapters 18 and 20-23 do not exist. Chapters 20-23 are dressings and appliances 
 
 <br>
 <br>
-
-
-
-
-
-
-
