@@ -1,0 +1,689 @@
+---
+title: "Data Preparation and Exploration"
+date: "6.6.2019"
+author:
+- Lars Gisler
+- Ramon Schildknecht
+- Carmela Wey
+output:
+  html_document:
+    df_print: paged
+    theme: united
+    toc: yes
+    number_sections: true
+    toc_float: true
+  pdf_document: default
+---
+
+# Key Findings & Approach
+One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/).
+
+<br>
+<br>
+
+
+# Data Understanding & Preparation
+Practice level prescribing data is a list of all medicines, dressings and appliances that are prescribed by all practices in England, including GP practices, each month.
+
+Data understanding ressources:
+
+- [Original source of data at NHS and essential information](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary) (28. March 2019)
+- [Glossary of terms](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-glossary-of-terms) (28. March 2019) 
+- [BNF Codes](https://ebmdatalab.net/prescribing-data-bnf-codes/) (28. March 2019) 
+
+<br>
+<br>
+
+
+## Files
+For each month there are three files:
+- Practice Prescribing Data file - this is the main data file giving the practice level prescribing data at presentation level using the full 15 digit BNF code. 
+- GP prescribing chemical substance file - this gives the chemical substance or section as appropriate using the 9 digit (Drugs) or 4 digit (Appliances) BNF code. 
+- GP prescribing practice address file - this gives the practice name and address. 
+
+
+## Read files
+
+We use the data for July 2018 only because of the volume (July has already over 8 million observations).
+
+We loaded the data and solved the following problems: 
+
+- created data model for the three files and joined them according to the model 
+- renamed the headers for file T201807ADDR BNFT.CSV 
+- checked columns 3 & 4 in T201807CHEM SUBS.CSV 
+- lowercase all variables and combine space separated variables with "_"  
+- check last column in T201807PDPI BNFT.CSV and deal with it in an appropriate way 
+
+```{r Libraries, message=FALSE, warning=FALSE}
+# load packages
+library(tidyverse)
+library(magrittr)
+library(DataExplorer)
+library(plotly)
+library(skimr)
+```
+
+
+```{r Read Files, eval=FALSE, include=FALSE}
+# load practitioners file
+gp <- read_csv(file = "data_files_2018_07_Jul/T201807ADDR BNFT.CSV", col_names = F)
+# col_names = c("date_month", "tbd", "practioner_1", "practioner_2") total 8
+# lower all coluns
+names(gp) %<>% tolower
+
+# rename variables with suitable headers
+names(gp) = c("period", "practice_code","practice_name","adress_1",
+                     "adress_2","adress_3","adress_4","postcode")
+
+# loach chemical substances file
+chem_subs <- read_csv(file = "data_files_2018_07_Jul/T201807CHEM SUBS.CSV")
+head(chem_subs)
+chem_subs$`chem sub`
+names(chem_subs) %<>% tolower
+chem_subs %<>% select(-x4) # remove x4 variable
+# rename variables
+chem_subs %<>%
+  # mutate(`201807` = coalesce(`201807`, "201807")) %>% # not working any longer with newer R Verson 3.6 / worked with R 3.5
+  # function with newer R Version 3.6  to insert value 201807 
+  select(year_month = `201807`, chem_sub = `chem sub`, everything())
+
+# plpd = Practice level prescribing data
+plpd <- read_csv(file = "data_files_2018_07_Jul/T201807PDPI BNFT.CSV")
+head(plpd)
+names(plpd) %<>% tolower
+
+
+# check last column: it is just an empty column
+read_lines(file = "data_files_2018_07_Jul/T201807PDPI BNFT.CSV", n_max = 10)
+
+# drop empty column x11
+plpd %<>% select(-x11)
+
+
+# rename variables containing '' and space
+plpd %<>%
+  select(bnf_code = `bnf code`, bnf_name = `bnf name`, act_cost = `act cost`, everything())
+
+# preparation inputs from Philipp Hochueli 
+## drop non proper BNF-codes (less than 15 characters)
+plpd %<>% 
+  mutate(bnf_code_length = nchar(bnf_code)) %>% 
+  filter(bnf_code_length > 14) %>% 
+  select(-bnf_code_length)
+# about 1.29 million rows were removed 
+
+## drop actual costs & quantity
+plpd %<>% select(-c(act_cost, quantity))
+
+# cast to right datatype
+plpd$nic <- as.double(plpd$nic)
+plpd$items <- as.integer(plpd$items)
+
+# generate 5% plpd sample regarding computing efficiency
+# dataset is big enough to generate statistically significant results 
+set.seed(22)
+plpd_sample <- sample_frac(plpd, 0.05)
+summary(plpd_sample)
+glimpse(plpd_sample) # got sample of 423'243 observations 
+
+rm(plpd) # remove big file for optimizing RAM
+```
+
+
+<br>
+<br>
+
+
+## Data Model
+
+- extract chemical substance from bnft table from the attribute "bnf_name". connect the chemical substance from the bnft with the chem_subs file (attribute "chem_sub"). Assumption: mapping is working correctly with the first 9 signs, example: 040702040.  
+- Attribute "practice" from bnft table can be connected with the second attribute (name tbd) from the adrr table, example: B86057 
+
+See [our presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/) for further details.
+
+
+```{r Data Model, eval=FALSE, include=FALSE}
+# extract chem_sub in plpd
+plpd_sample %<>% 
+  mutate(chem_sub = str_sub(bnf_code, 1, 9))
+
+# join plpd with gp & chem_subs
+d <- left_join(x = plpd_sample, y = gp, by = c("practice" = "practice_code"), suffix = c(".plpd", ".gp")) %>%
+  left_join(chem_subs, by = "chem_sub") %>% 
+  select(bnf_code, bnf_name, chem_sub_code = chem_sub, chem_name = name, items, nic, 
+         practice_code = practice, practice_name, sha, adress_1,
+         adress_2, adress_3, adress_4, postcode, period = period.plpd)
+# not including pct because "sha" is better according to Philipp Hochueli
+
+# split bnf_name into drug_dressing_appliances, forms & dosages with tidyr
+d %<>%
+  separate(bnf_name, into = c("drug_dressing_appliances", "form"),
+           sep = "_", remove = FALSE) %>% 
+  separate(form, into = c("form", "dosage"),
+           sep = " ", remove = TRUE, extra = "merge") 
+# check error message: Expected 2 pieces. Missing pieces filled with `NA` in 10 rows [22980, 30494, 110893, 213266, 270869, 305394, 312425, 341193, 360483, 366071].Expected 2 pieces. Missing pieces filled with `NA` in 25704 rows [23, 53, 55, 112, 150, 165, 185, 213, 229, 246, 271, 276, 307, 326, 426, 440, 457, 519, 526, 553, ...].
+
+d %<>% 
+  mutate(nic_item = nic/items)
+
+# write_csv(x = d, path = "plpd_extended.csv") # write result for direct start in next R code chunk
+
+# show NAs for dosage
+# d %>%
+#   summarise(count = sum(is.na(dosage)))
+
+```
+
+
+<br>
+<br>
+
+
+## Directly load prepared data
+
+```{r Load sample data directly, message=FALSE, warning=FALSE}
+# load preprocessed data
+d <- read_csv("plpd_extended.csv")
+```
+
+<br><br>
+
+# Data Exploration
+
+An important finding at this step is that there are no N/A values for the columns nic and items. Later analysis will aggregate the columns nic and item to do analyis on the price and number of sold items per drug. Also the nic per item will be calculated for each drug. If for some observations the price would be available but no item, this would distort the nic per item.
+
+```{r Data Exploration}
+glimpse(d)
+
+# explore data with DataExplorer package
+introduce(d)
+plot_intro(d)
+plot_missing(d)
+
+# explore numerical values
+# create_report(d[, c("items", "nic")])
+
+# check for duplicates
+duplicates <- length(d) - length(d %>% distinct())
+cat("Number of duplicates: ", duplicates)
+
+```
+
+There are no duplicates.
+
+<br><br>
+
+# Scope 
+
+## What we can't answer with the given data
+
+One can't:
+
+- download data for only one practice or subset of practices - the data is contained in a single large data file 
+- compare one practice with another without further information about prescribing, list sizes, age and gender of patients on the list, knowledge about the medicines and why they are prescribed 
+- identify individual patients, even those receiving medication for rare conditions, because no patient data is contained in the data 
+- find out how many people with a particular condition have been given prescriptions - prescriptions given to patients do not say why the drug has been prescribed 
+- find out which pharmacies dispensed these prescriptions 
+- find out about private prescriptions - these are not included in the data 
+- find out the proportion of prescriptions that were paid for by patients or exempt from payment 
+
+[Source](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-data-more-information) (04.04.2019). 
+
+<br>
+<br>
+
+
+
+## Questions to be answered 
+
+1. How many branded and how many generic BNF-Codes exist? How is the ratio? 
+2. How many branded and generic products were prescribed? How is the ratio? 
+3. How many branded drugs have an equal generic? How many branded products do not have a generic? 
+4. How is the price difference between branded drugs & generics? 
+5. How does the price of branded drugs for which a generic exists differ from those branded drugs for which no generic exists? 
+6. How is the distribution of branded and generic products among the BNF chapters? 
+
+Detailed answers are found in [this PowerPoint presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/). 
+
+<br>
+<br>
+
+# Analysis
+
+## Create a list of branded drug and a list of generic drugs
+
+```{r Branded drugs & generics}
+# create a DF that contains every generic drug just once and that has all prices (nic) and numbers (items) aggregated per drug.
+generic_list <- d %>%
+  filter(str_sub(bnf_code,10,11) == 'AA') %>% # drugs with 'AA' at bnf letter 10 and 11 are generics 
+  group_by(bnf_code, bnf_name, drug_dressing_appliances, form, dosage, chem_name) %>%
+  summarise(nic_sum=sum(nic), items_sum=sum(items)) %>% # find sum of prices (nic) and numbers (items)
+  ungroup()
+generic_list <- generic_list[order(generic_list$items_sum,decreasing=TRUE),] # order list for 'item_sum'
+
+# create a key for later join with the branded drug list
+generic_list %<>% 
+  mutate(bnf_key = paste(str_sub(bnf_code, 1, 9), str_sub(bnf_code,12,13), sep="")) %>% #bnfcode element 1-9 plus element 12-13
+  mutate(nic_per_item = nic_sum/items_sum) # calculate nic per item
+generic_list <- generic_list[c(9,1,2,3,4,5,6,7,8,10)] # order the columns
+
+
+# create a DF that contains every branded drug just once and that has all prices (nic) and numbers (items) aggregated per drug.
+branded_list <- d %>%
+  filter(str_sub(bnf_code,10,11) != 'AA') %>% #drugs with no 'AA' at bnf letter 10 and 11 are branded (no generics)
+  group_by(bnf_code, bnf_name, drug_dressing_appliances, form, dosage, chem_name) %>%
+  summarise(nic_sum=sum(nic), items_sum=sum(items)) %>% # find sum of prices (nic) and numbers (items)
+  ungroup()
+branded_list <- branded_list[order(branded_list$items_sum,decreasing=TRUE),] # order list for 'item_sum'
+
+# create a key for later join with the generic drug
+branded_list %<>% 
+  mutate(bnf_key = paste(str_sub(bnf_code, 1, 9), str_sub(bnf_code,14,15), sep="")) %>% #bnfcode element 1-9 plus element 14-15
+  mutate(nic_per_item = nic_sum/items_sum) # calculate nic per item
+branded_list <- branded_list[c(9,1,2,3,4,5,6,7,8,10)] # order the columns
+
+# create a DF that contains every drug just once and that has all prices (nic) and numbers (items) aggregated per drug.
+complete_list <- d %>%
+  group_by(bnf_code) %>%
+  summarise(nic_sum=sum(nic), items_sum=sum(items)) %>% # find sum of prices (nic) and numbers (items)
+  ungroup()
+
+```
+
+<br>
+<br>
+
+
+
+## Merge Branded drugs & generics
+
+Create a dataframe that has for every branded drug the generic drug next to it (if it exists).
+
+```{r}
+# left join for every branded drug the generic drug next to it.
+med_list <- left_join(x = branded_list, y = generic_list, by = c("bnf_key"), suffix = c("_branded", "_generic"))
+# med_list_a <- med_list %>% select(bnf_code_branded, bnf_name_branded, bnf_code_generic, bnf_name_generic) # reduced med_list
+```
+
+<br>
+<br>
+
+
+## Understand the joined dataframe (med_list)
+
+In order to further use the dataframe med_list for analysis, it's important to understand the dataframe and to check if the new data frame was created as expected.
+
+```{r}
+# count all generic products in med_list
+med_list %>% 
+  group_by(bnf_code_generic) %>%
+  summarise(counts = n()) %>% # count
+  arrange(desc(counts)) %>% # descending order
+  ungroup()
+# Finding: some generics appear several times in med_list. This means one generic can be a generic for several branded drugs.
+# Further investivation showed: Some drugs with same category and chemical substance are in fact different products, but still refer to the same generic drug.
+# Consequence: NIC and items of generics can not be directly aggregated in the med_list to do analysis on prices (NIC) and numbers (item)
+# -----------------------------------------------------------
+
+# count all branded products in med_list
+med_list %>% 
+  group_by(bnf_code_branded) %>%
+  summarise(counts = n()) %>% # count
+  arrange(desc(counts)) %>% # descending order
+  ungroup()
+# Finding: every branded product appears only once in the med_list 
+# -> NIC and items of branded drugs can be directly aggregated in the med_list to do analysis on prices (NIC) and numbers (item)
+# -----------------------------------------------------------
+
+# compare number of unique generics in generic_list and med_list. Verify bnf_key (key that is was used to join branded_list and generic_list)
+sapply(generic_list, function(x) length(unique(x))) # show effective numbers
+sapply(generic_list, function(x) length(unique(x))/length(generic_list$bnf_key)) # show ratio
+sapply(med_list, function(x) length(unique(x))) # show effective numbers
+sapply(med_list, function(x) length(unique(x))/length(med_list$bnf_key)) # show ratio
+# Finding: Some generics from the generic_list do not appear in the med_list (unique number of bnf codes is not identical in med_list and generic_list). Either the branded equivalent was not in the sample or it was not sold and therefore not in the data (only drugs with item equal or higher than 1 are in the data )
+# -----------------------------------------------------------
+
+# compare number of unique branded drugs in generic_list and med_list. 
+sapply(branded_list, function(x) length(unique(x))) # show effective numbers
+sapply(branded_list, function(x) length(unique(x)))/length(branded_list$bnf_key) # show ratio
+
+# Findings:
+# number of bnf codes in med_list and branded_list match up. This means every branded product from the branded_list ended up in the med_list
+# -----------------------------------------------------------
+
+# Verify bnf_key (join key)
+branded_list %>% 
+  group_by(bnf_key) %>%
+  summarise(counts = n()) %>% # count
+  arrange(desc(counts)) %>% # descending order
+  ungroup()
+# Findings:
+# - the join key in the med_list and the branded_list are not unique (number of unique bnf_key is smaller than number of unique bnf codes).
+# Reasons:
+# - many branded drugs have in the bnf code the last two character 'A0' or 'AA' which is usually the case when they have no generic.
+# - some branded drugs that have the same bnf key (join key) and are identical in ther chemical compound (first 9 characters) are actually different products (character 10/11) or are of different strength/fomulation (character 12/13). Such products, if a generica exists, all point to the same generica.
+# -----------------------------------------------------------
+
+```
+
+
+## Additional Data Exploration
+
+Get missing rows, and distributions of branded_list, generic_list as well as the merged med_list.
+
+```{r}
+# explore data with DataExplorer package
+introduce(branded_list)
+plot_intro(branded_list)
+plot_missing(branded_list, title = "Branded")
+
+introduce(generic_list)
+plot_intro(generic_list)
+plot_missing(generic_list, title = "Generics")
+
+attach(med_list)
+# inspect correlation and N/A values
+# create_report(med_list[, c("nic_sum_branded", "nic_sum_generic", "items_sum_branded", "items_sum_generic", "nic_per_item_branded", "nic_per_item_generic")])
+plot_missing(med_list)
+plot_histogram(med_list)
+
+# data_representation_for_slides <- med_list %>% 
+#   select(1:2, 8:10, 11:12, 17:19)
+
+# write csv for RShiny demo
+# write_csv(med_list, "med_list.csv")
+```
+
+There are missing values in the branded_list (9.22%) and generic_list (0.3%) (each within variable dosage). 
+We find the missing values from the branded_list again in the med_list. Additionaly there are a lot of missing values (around 30%) because of no matching generics to branded drugs.
+
+<br>
+<br>
+
+
+## Questions 1: How many branded and how many generic BNF-Codes exist? How is the ratio?
+
+```{r}
+# data Cleaning
+# looking for NAs -> no NAs 
+cleaned_branded_items <- na.omit(branded_list$items_sum)
+diff_length_branded <- length(branded_list$items_sum) - length(cleaned_branded_items)
+diff_length_branded
+
+cleaned_generic_items <- na.omit(generic_list$items_sum)
+diff_length_generic <- length(generic_list$items_sum) - length(cleaned_generic_items)
+diff_length_generic
+
+
+
+# number of different generic-products (different BNF-Codes for generic-products)-> 3537
+number_generic <- count(generic_list)
+
+
+# number of different branded-products (different BNF-Codes for branded-products) -> 4142
+number_branded <- count(branded_list)
+
+
+# making a simple barplot branded versus generic BNF-codes
+barplot(c(number_branded$n, number_generic$n),col=c("green", "red"), names.arg=c("Branded", "Generic"), main="Branded versus generic BNF-Codes")
+
+
+# making stacked barplot for ratio
+table <- matrix(c(4142,3537),ncol=1,byrow=TRUE)
+colnames(table) <- c("BNF-Code")
+rownames(table) <- c("Branded","Generic")
+table <- as.table(table)
+table
+
+table_df <- as.data.frame(table)
+table_df
+
+barplot(table, main = "Branded versus generic BNF-codes", col = c("green","red"), legend=rownames(table))
+
+# calculating the ratio branded versus generic BNF-codes
+ratio_branded_to_total <- number_branded/(number_branded + number_generic)
+ratio_generics_to_total <- number_generic/(number_branded + number_generic)
+cat("Branded Drugs in %: ", ratio_branded_to_total$n) 
+cat("Generic Drugs in %: ", ratio_generics_to_total$n)
+
+```
+
+There are about 54% branded drug BNF-Codes and 46% generic drug BNF-Codes.
+
+<br>
+<br>
+
+
+## Questions 2: How many branded and generic products were prescribed? How is the ratio? 
+
+```{r}
+# total number of prescribed branded- and generic-medications (sum of items per product)
+sum_items_branded <- sum(branded_list$items_sum)  # 695'682 prescribed items
+sum_items_generic <- sum(generic_list$items_sum)   # 3'682'885 prescribed items
+
+# making a simple barplot with prescribed branded- and generic-medications
+barplot(c(sum_items_branded, sum_items_generic), col=c("green", "red"), names.arg=c("Branded", "Generic"), main="Prescribed branded and generic medications")
+
+# making a table with the absolute numbers (sum of items per product) of prescribed branded- and generic-medications
+table_sum_items <- matrix(c(sum_items_branded, sum_items_generic), ncol=1, byrow=TRUE)
+colnames(table_sum_items) <- c("Product")
+rownames(table_sum_items) <- c("Branded", "Generic")
+table_sum_items <- as.table(table_sum_items)
+table_sum_items
+
+# stacked barplot with prescribed branded- and generic-medications
+barplot(table_sum_items, main = "Prescribed branded and generic medications", col = c("green","red"), legend=rownames(table_sum_items))
+
+```
+
+84% of de prescribed medications are generics and 16% are branded.
+
+<br>
+<br>
+
+
+## Questions 3: How many branded drugs have an equal generic? How many branded products do not have a generic?
+
+```{r Question x}
+# Wie viele Branded-Products haben ein Generika? Wie viele Branded-Products haben kein Generika?
+skim(med_list) # get statistic data
+(med_list_missing_values <- as.factor(sapply(med_list, function(x) sum(is.na(x)))))
+cat("Ratio drugs with generics: ", (missing_ratio <- (1- as.numeric(levels(med_list_missing_values)[med_list_missing_values])[11]/
+  length(bnf_code_branded))))
+
+```
+
+Answer: There are 1260 missing values for the generics data. There are totally 4142 in our joined branded drugs and generics table. The missing ratio is therefore about 30%. Conclusion: There are close to *70% (about 2900) of all branded drugs with a generic and 30% (about 1242) vice versa*.
+
+<br>
+<br>
+
+
+## Question 4: How is the price difference between branded drugs & generics?
+
+Approach: Compare the branded drugs prices (sum & per item) with the generic prices (sum & per item) as well as the sold items sum of both of them. 
+
+
+```{r Question xx, warning=FALSE}
+# Wie ist der Preisunterschied zwischen Branded-Products und Generikas? Sind Generikas billiger?
+
+# comparisons branded drugs vs. generic
+## add price per item difference
+med_list %<>% 
+  mutate(diff_branded_to_generic = nic_per_item_branded - nic_per_item_generic)
+
+attach(med_list)
+
+
+## show distribution comparison price sum
+(p_nic_sum <- plot_ly(x = ~generic_list$nic_sum, name = "Generic price sum", type = "box", boxpoints = "all", jitter = 0.25) %>%
+  add_trace(x = ~branded_list$nic_sum, name = 'Branded price sum') %>%
+  layout(title = "Price sum comparison"))
+## compare mean
+summary(generic_list$nic_sum)
+summary(branded_list$nic_sum)
+
+
+## show distribution comparison price per item 
+(p_nic_per_item <- plot_ly(x = ~nic_per_item_generic, name = "Generic price per item", type = "box", boxpoints = "all", jitter = 0.25) %>%
+  add_trace(x = ~nic_per_item_branded, name = 'Branded price per item') %>%
+  layout(title = "Price per item comparison"))
+
+
+## show distribution comparison difference price per item
+(
+  p_nic_per_item_difference_boxplot <-
+  plot_ly(
+  x = ~diff_branded_to_generic,
+  type = "box",
+  name = " ",
+  boxpoints = "all",
+  jitter = 0.25
+  ) %>%
+  layout(title = "Item price branded drug - generic price")
+  )
+
+summary(diff_branded_to_generic)
+
+(p_nic_per_item_difference_hist <- plot_ly(x = ~diff_branded_to_generic, type = "histogram", histnorm = "probability", alpha = 0.5, nbinsx = 2000) %>% 
+  layout(title = "Frequency item price branded drug - generic price",
+         xaxis = list(title = "item price branded drug - generic price",
+                      zeroline = FALSE),
+         yaxis = list(title = "Frequency",
+                      zeroline = FALSE)))
+
+
+
+## show distribution comparison items sold sum total 
+(p_item_sum <- plot_ly(x = ~generic_list$items_sum, name = "Generic sold items sum", type = "box", boxpoints = "all", jitter = 0.25) %>%
+  add_trace(x = ~branded_list$items_sum, name = 'Branded sold items sum') %>%
+  layout(title = "Item sold sum comparison"))
+## compare mean
+summary(generic_list$items_sum)
+summary(branded_list$items_sum)
+
+detach(med_list)
+```
+
+
+Answers: 
+
+- The total price of the sold generics is much higher for generics (median = ~833) than for branded drugs (median = ~265). The generics price sum variates much more than the branded drugs one. This numbers are caused by the totally more sold generics (65% of all items sold). 
+- The price per item comparison shows that the branded drugs are overall 0.18 pounds more expensive (median). The first quartile tells us that 25% of all comparisons are at least 2.71 pound cheaper (generics vs. branded drugs). There are on the other side 25% of all comparisons at least 4.82 pound more expensive (branded drugs vs. generics). The mean is much different with ~3.1 pound more expensive branded drugs because it is influenced a lot by outliers. That's why the median is more suitable in this case. **Outlook: one should compare prices with classes, for example by drug chapters**. 
+- Generics represent total sold items of 35 (median) vs. branded drugs with 12 (median). This means there are in average about three times more sold generics then branded drugs! The total sold items of generics  spread much more than the branded drugs. The mean confirms the discovery: Generics are in average sold 1041 times versus 168 times (generic drugs). There are a lot of outliers in this case, too. Therefore it is reasonable to stay with the median. 
+
+<br>
+<br>
+
+
+## Question 5: How does the price of branded drugs for which a generic exists differ from those branded drugs for which no generic exists?
+
+```{r}
+
+# select required data
+med_list_no_generic <- med_list %>% # filter for those branded products that don't have a generic
+  filter(is.na(bnf_code_generic))
+med_list_generic <- med_list %>%    # filter for those branded products that have a generic
+  filter(!is.na(bnf_code_generic))
+
+
+# use plotly to compare prices in interactive boxplot
+p1 <- plot_ly(y=med_list_generic$nic_per_item_branded, type="box", name="with generic") %>%
+  add_trace(y=med_list_no_generic$nic_per_item_branded, name="without generic") %>%
+  layout(
+    title = "Price Comparison of branded drugs (with and without generic)",
+    xaxis = list(title = "Group"),
+    yaxis = list(title = "Price")
+    )
+p1
+
+# compare basic statistical data
+print("median branded drug with existing generic vs. branded drug without generic")
+median(med_list_generic$nic_per_item_branded)     # median of branded drug for which generic exist
+median(med_list_no_generic$nic_per_item_branded)  # median of branded drug for which no generic exist
+
+print("mean branded drug with existing generic vs. branded drug without generic")
+mean(med_list_generic$nic_per_item_branded)       # mean of branded drug for which generic exist
+mean(med_list_no_generic$nic_per_item_branded)    # mean of branded drug for which no generic exist
+```
+
+
+**Answers**
+  
+* Average price comparison:
+    - Branded drugs for which a generic exist have an average price of 37.90£. 
+    - Branded drugs for which no generic exist have an average price of 89.00£.
+* Median price comparison: When looking at the median instead of the mean, the price difference is not quite as extreme. 
+    - The median price for the branded drugs for which a generic exist is 15.10£. 
+    - The median price for the branded drugs for which no generic exist is 19.10£ 
+* The difference between the mean and the median can be explained by the many outliers of the branded drugs for which no generics exist. 
+* The results indicate that as long as no generic is on the market, the branded drugs tend to be more expensive. These results are plausable as the non-existence of a generic might be due to the still ongoing patent protection of a branded drug. During this time period a company might try to make up for the high research&development costs of the drug.
+* The statistical significance of the results would have to be further investigated with statistical tests. But the current finding is an indicator for the increased price preasure on branded products after a generic equivalent is released to the marked. 
+    
+
+<br>
+<br>
+
+
+## Question 6: How is the distribution of branded and generic products among the BNF chapters? 
+
+```{r}
+
+# unique generic and branded BNF-codes per chapter (absolut numbers, not items)
+branded_chapters <- branded_list %>% 
+  mutate(chapter = str_sub(bnf_code, 1, 2)) 
+
+generic_chapters <- generic_list %<>% 
+  mutate(chapter = str_sub(bnf_code, 1, 2)) 
+
+
+
+# create a table with the number (n) of unique branded BNF-codes per chapter
+temp_0 <- branded_chapters %>% 
+  group_by(chapter) %>% 
+  tally() %>% 
+  arrange(-n) %>% 
+  mutate(type="branded")
+
+
+# create a table with the number (n) of unique generic BNF-codes per chapter
+temp_1 <- generic_chapters %>% 
+  group_by(chapter) %>% 
+  tally() %>% 
+  arrange(-n) %>% 
+  mutate(type="generic")
+
+
+# merging the two tables and calculating the difference between the number of unique branded- and generic BNF-Codes per chapter
+chapter_merged <- temp_0 %>% 
+  left_join(temp_1, by = "chapter", suffix=c("_branded", "_generic")) %>% 
+  mutate(difference = n_branded - n_generic) %>% 
+  arrange(difference) %>% 
+  mutate(diff_percentage=difference/n_branded)
+
+chapter_merged
+
+
+# plotting the merged table with its difference in the number of unique branded- and gereric BNF-Codes per chapter
+chapter_merged$chapter <- factor(chapter_merged$chapter,levels = chapter_merged$chapter)
+
+ggplot(data = chapter_merged) +
+  aes(x = chapter, weight = difference) +
+  geom_bar(fill = "#0c4c8a") +
+  theme_minimal() +
+  coord_flip() +
+  labs(x = "Chapter", y = "Difference")
+
+```
+
+Chapters 18 and 20-23 do not exist. Chapters 20-23 are dressings and appliances with ohnly 4 digit BNF-code. Chapter 18 are preparations used in diagnosis. These codes were already droped at the beginning. In fact there is a difference between the number of branded and generic BNF-codes among the chapters. On the one hand many more branded BNF-Codes do exist for chapter 09 "Nutrition and Blood". Other chapters that have more branded BNF-codes than generic BNF-codes are chapter 06 and 13 ("Endocrine System" and "Skin") and chapters 07, 19, 14, 12, 03 and 01. On the other hand there exist chapters which have more generic BNF-codes than branded BNF-codes like chapter 05 ("Infectiona"), 02 ("Cardiovascular System"), 04 ("Central Nervous System") or chapters 10, 08, 15 and 11.
+
+<br>
+<br>
+
+
+
+
+
+
+

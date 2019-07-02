@@ -1,0 +1,12 @@
+name: uk_drugs_vs_generics_comparison
+title: UK_drugs_vs_generics_comparison
+username:
+account: rasch
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 971777
+bundleId: 2139581
+url: https://rasch.shinyapps.io/uk_drugs_vs_generics_comparison/
+when: 1560001367.0661
+asMultiple: FALSE
+asStatic: FALSE
