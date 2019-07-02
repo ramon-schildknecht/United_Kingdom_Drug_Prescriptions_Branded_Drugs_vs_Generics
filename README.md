@@ -8,6 +8,6 @@
 
 **Task**: see folder "Task"
 
-**Results**: can be found [here](http://rpubs.com/ramon_schildknecht/data_science_in_healthcare_drug_generics_comparison) on RPubs
+**Results**: can be found [here](http://rpubs.com/ramon_schildknecht/data_science_in_healthcare_drug_generics_comparison) on RPubs as well as in the folder "Presentation"
 
 **Code/Data**: can be found in the file "NEW_Data_Preparation_and_Exploration.Rmd"
