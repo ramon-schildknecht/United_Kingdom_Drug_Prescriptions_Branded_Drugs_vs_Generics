@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/509966/f56992d665a94fe1af6feae3fdd11d56
+bundleId: https://api.rpubs.com/api/v1/document/509966/f56992d665a94fe1af6feae3fdd11d56
+url: http://rpubs.com/ramon_schildknecht/509966
+when: 1562172422.53116

@@ -16,7 +16,7 @@ output:
 ---
 
 # Key Findings & Approach
-One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/)a.
+One would find the key findings and the approach in [this presentation](https://www.evernote.com/l/Ai_GWuOYdyRCIYLLj__1p44MqOrxs-5jK_o/){target="_blank"}.
 
 <br>
 <br>
@@ -27,9 +27,9 @@ Practice level prescribing data is a list of all medicines, dressings and applia
 
 Data understanding ressources:
 
-- [Original source of data at NHS and essential information](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary) (28. March 2019)
-- [Glossary of terms](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-glossary-of-terms) (28. March 2019) 
-- [BNF Codes](https://ebmdatalab.net/prescribing-data-bnf-codes/) (28. March 2019) 
+- [Original source of data at NHS and essential information](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary){target="_blank"} (28. March 2019)
+- [Glossary of terms](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-glossary-of-terms){target="_blank"} (28. March 2019) 
+- [BNF Codes](https://ebmdatalab.net/prescribing-data-bnf-codes/){target="_blank"} (28. March 2019) 
 
 <br>
 <br>
@@ -227,7 +227,7 @@ One can't:
 - find out about private prescriptions - these are not included in the data 
 - find out the proportion of prescriptions that were paid for by patients or exempt from payment 
 
-[Source](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-data-more-information) (04.04.2019). 
+[Source](https://digital.nhs.uk/data-and-information/areas-of-interest/prescribing/practice-level-prescribing-in-england-a-summary/practice-level-prescribing-data-more-information){target="_blank"} (04.04.2019). 
 
 <br>
 <br>
