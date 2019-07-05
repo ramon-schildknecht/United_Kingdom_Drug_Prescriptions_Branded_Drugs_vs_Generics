@@ -12,5 +12,5 @@
 
 **Code/Data**: can be found in the file "NEW_Data_Preparation_and_Exploration.Rmd". 
 
-**Data Exploration**: you can explore our dataset with this [RShiny App](https://www.shinyapps.io/admin/#/application/971777). The source code lies in the folder "med_list_demo" 
+**Data Exploration**: you can explore our dataset with this [RShiny App](https://rasch.shinyapps.io/uk_drugs_vs_generics_comparison/). The source code lies in the folder "med_list_demo" 
 
